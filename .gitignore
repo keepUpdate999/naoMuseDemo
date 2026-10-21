@@ -1,0 +1,19 @@
+.venv/
+.local/
+__pycache__/
+.pytest_cache/
+vendor/source.tar
+*.pyc
+
+# Local credentials, runtime data and generated packages
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+dist/

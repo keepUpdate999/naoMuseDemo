@@ -1,0 +1,51 @@
+name: nanomuse-business
+services:
+  db:
+    image: mariadb:11.4.5@sha256:49117dcc565cf51aa57ac5fca59ab31213402ff0eae6ffc13c46a37b938f7e4b
+    restart: "no"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${BUSINESS_DB_ROOT}
+      MARIADB_DATABASE: nanomuse_business
+      MARIADB_USER: nanomuse
+      MARIADB_PASSWORD: ${BUSINESS_DB_PASSWORD}
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  erp:
+    image: dolibarr/dolibarr:22.0.4@sha256:7ad88fc9b13c414994dc1772af1cd2266f4f60289151d53d9cf556c673eda4e7
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18893:80"
+    environment:
+      DOLI_DB_HOST: db
+      DOLI_DB_NAME: nanomuse_business
+      DOLI_DB_USER: nanomuse
+      DOLI_DB_PASSWORD: ${BUSINESS_DB_PASSWORD}
+      DOLI_ADMIN_LOGIN: presenter
+      DOLI_ADMIN_PASSWORD: ${BUSINESS_APP_PASSWORD}
+      DOLI_URL_ROOT: http://127.0.0.1:18893
+      DOLI_COMPANY_NAME: 星河活动工作室
+      DOLI_COMPANY_COUNTRYCODE: CN
+      DOLI_ENABLE_MODULES: Societe,Commande,Product,Service,Agenda
+      PHP_INI_DATE_TIMEZONE: Asia/Shanghai
+    volumes:
+      - documents:/var/www/documents
+      - ./seed_erp.php:/opt/nanomuse-seed.php:ro
+  wiki:
+    image: dokuwiki/dokuwiki:2025-05-14a@sha256:f08ecfdda239acb5dfeeb46b582c6cbb148328540382f9255c409cfdab6e41c9
+    restart: "no"
+    ports:
+      - "127.0.0.1:18894:8080"
+    volumes:
+      - wiki:/storage
+volumes:
+  db:
+  documents:
+  wiki:

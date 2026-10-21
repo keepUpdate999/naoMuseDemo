@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "provider": "openai",
+  "base_url": "",
+  "model": "",
+  "api_key": ""
+}

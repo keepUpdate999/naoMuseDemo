@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "map": "PROJECT_MAP.md",
+  "scopes": [
+    "web",
+    "tests",
+    "server.py",
+    "browser_agent.py",
+    "anthropic_adapter.py",
+    "secret_store.py",
+    "data.py",
+    "schemas.py",
+    "start.ps1",
+    "stop.ps1",
+    "setup.ps1",
+    "business",
+    "real_server.py",
+    "start-real.ps1",
+    "stop-real.ps1",
+    "configure_model.py"
+  ],
+  "exclude_names": [
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "target",
+    "vendor"
+  ]
+}

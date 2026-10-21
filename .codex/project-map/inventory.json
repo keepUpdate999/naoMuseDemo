@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-21T23:21:28+00:00",
+  "path_digest": "c6276e262b90ce0f762ed354499a2386da6121a31c56c42b1b2690417f71e0e7",
+  "last_change": {
+    "added": 2,
+    "removed": 0
+  },
+  "files": [
+    {
+      "path": "anthropic_adapter.py"
+    },
+    {
+      "path": "browser_agent.py"
+    },
+    {
+      "path": "business/browser.py"
+    },
+    {
+      "path": "business/budget.py"
+    },
+    {
+      "path": "business/catalog.py"
+    },
+    {
+      "path": "business/compose.yml"
+    },
+    {
+      "path": "business/materials.py"
+    },
+    {
+      "path": "business/seed_erp.php"
+    },
+    {
+      "path": "business/stack.py"
+    },
+    {
+      "path": "business/web/app.js"
+    },
+    {
+      "path": "business/web/index.html"
+    },
+    {
+      "path": "business/web/logo.png"
+    },
+    {
+      "path": "business/web/style.css"
+    },
+    {
+      "path": "configure_model.py"
+    },
+    {
+      "path": "data.py"
+    },
+    {
+      "path": "real_server.py"
+    },
+    {
+      "path": "schemas.py"
+    },
+    {
+      "path": "secret_store.py"
+    },
+    {
+      "path": "server.py"
+    },
+    {
+      "path": "setup.ps1"
+    },
+    {
+      "path": "start-real.ps1"
+    },
+    {
+      "path": "start.ps1"
+    },
+    {
+      "path": "stop-real.ps1"
+    },
+    {
+      "path": "stop.ps1"
+    },
+    {
+      "path": "tests/serve_business_qa.py"
+    },
+    {
+      "path": "tests/serve_live_acceptance.py"
+    },
+    {
+      "path": "tests/serve_qa.py"
+    },
+    {
+      "path": "tests/test_anthropic.py"
+    },
+    {
+      "path": "tests/test_business_apps.py"
+    },
+    {
+      "path": "tests/test_business_console.py"
+    },
+    {
+      "path": "tests/test_business_unit.py"
+    },
+    {
+      "path": "tests/test_configuration.py"
+    },
+    {
+      "path": "tests/test_demo.py"
+    },
+    {
+      "path": "tests/test_live_budget.py"
+    },
+    {
+      "path": "tests/test_openai_gateway.py"
+    },
+    {
+      "path": "tests/test_provider_failure.py"
+    },
+    {
+      "path": "tests/test_workbench.py"
+    },
+    {
+      "path": "tests/verify_business_live.py"
+    },
+    {
+      "path": "web/app.js"
+    },
+    {
+      "path": "web/catalog.js"
+    },
+    {
+      "path": "web/index.html"
+    },
+    {
+      "path": "web/logo.png"
+    },
+    {
+      "path": "web/scene.html"
+    },
+    {
+      "path": "web/scene.js"
+    },
+    {
+      "path": "web/style.css"
+    }
+  ]
+}
