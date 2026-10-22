@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "generated_at": "2026-10-21T23:21:28+00:00",
-  "path_digest": "c6276e262b90ce0f762ed354499a2386da6121a31c56c42b1b2690417f71e0e7",
+  "generated_at": "2026-10-22T00:06:33+00:00",
+  "path_digest": "827a4ac70a1689c14f32ea1c2384e64f91ab1bec81eb34706e4e6d229ead4049",
   "last_change": {
     "added": 2,
     "removed": 0
@@ -117,6 +117,12 @@
     },
     {
       "path": "tests/test_workbench.py"
+    },
+    {
+      "path": "tests/test_workspace_reset.py"
+    },
+    {
+      "path": "tests/test_workspace_reset_integration.py"
     },
     {
       "path": "tests/verify_business_live.py"

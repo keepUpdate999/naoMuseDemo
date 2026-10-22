@@ -44,6 +44,12 @@ powershell -ExecutionPolicy Bypass -File .\start-real.ps1
 点击“退出工作区”或运行“停止真实业务演示.cmd”关闭本轮服务；Docker持久化卷保留。
 就绪后一小时、没有在途任务时自动退出，可重新启动。
 
+## 重置工作区
+
+页眉【重置工作区】支持确认后备份并恢复初始素材；模型密钥与调用记录保留，完成后自动打开7个已登录页面。
+同一弹窗可恢复历史工作区，恢复前也会备份当前数据。旧数据卷保留，恢复使用副本，避免后续编辑覆盖历史备份。
+重置期间锁定任务和退出操作，初始化失败尝试回退原工作区。详见 [操作指南](REAL_APPS_GUIDE.md)。
+
 ## 测试
 
 ```powershell
@@ -53,7 +59,15 @@ $env:BUSINESS_INTEGRATION='1'
 .\.venv\Scripts\python.exe -m pytest tests/test_business_apps.py -q
 ```
 
-默认测试使用临时数据和隔离端口；真实应用集成默认跳过。离线QA使用明确标记的测试替身，正式启动不加载它。
+默认测试使用临时数据和隔离端口；真实应用集成默认跳过。
+完整重置/恢复可在独立临时Docker项目中验收（不会重置当前业务工作区）：
+
+```powershell
+$env:WORKSPACE_RESET_INTEGRATION='1'
+.\.venv\Scripts\python.exe -m pytest tests/test_workspace_reset_integration.py -q -s
+```
+
+该测试使用随机回环端口、专用数据卷，finally停止并清理它自己创建的临时资源；要求Docker Desktop可用，不调用模型。离线QA使用明确标记的测试替身，正式启动不加载它。
 历史本机验收记录见 [REAL_APPS_ACCEPTANCE.md](REAL_APPS_ACCEPTANCE.md)，使用方式见 [REAL_APPS_GUIDE.md](REAL_APPS_GUIDE.md)，架构见 [PROJECT_MAP.md](PROJECT_MAP.md)。
 本机历史验证不等于新电脑安装或上游完整CI通过。
 

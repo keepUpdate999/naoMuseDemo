@@ -97,6 +97,7 @@ async def test_run_refresh_stop_reopen_and_failure_recovery(console_qa):
             await page.locator('#prompt').fill('wait-for-stop')
             await page.locator('#run').click()
             await expect(page.locator('#stop')).to_be_enabled()
+            await expect(page.locator('#reset-workspace')).to_be_disabled()
             await expect(page.locator('#open')).to_be_disabled()
             await expect(page.locator('nav button').first).to_be_disabled()
             # Reload must recover the active task, not enable duplicate execution.
@@ -120,4 +121,36 @@ async def test_run_refresh_stop_reopen_and_failure_recovery(console_qa):
             await page.locator('#run').click()
             await expect(page.locator('#status')).to_have_text('任务已完成',timeout=10000)
             await expect(page.locator('#logs')).to_contain_text('OFFLINE QA: completed recovered')
+        finally:await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_workspace_reset_cancel_confirm_refresh_and_restore(console_qa):
+    async with async_playwright() as pw:
+        browser=await pw.chromium.launch()
+        try:
+            page=await browser.new_page();await page.goto(console_qa)
+            await expect(page.locator('nav button')).to_have_count(6)
+            await page.locator('#reset-workspace').click()
+            await expect(page.locator('#workspace-dialog')).to_be_visible()
+            await page.locator('#workspace-cancel').click()
+            await expect(page.locator('#workspace-dialog')).not_to_be_visible()
+            await expect(page.locator('#run')).to_be_enabled()
+            await page.locator('#prompt').fill('old task draft')
+            await page.locator('#reset-workspace').click();await page.locator('#workspace-confirm').click()
+            await expect(page.locator('#run')).to_be_disabled()
+            await expect(page.locator('#reset-workspace')).to_be_disabled()
+            await page.reload()
+            await expect(page.locator('#status')).to_have_text('等待任务',timeout=10000)
+            await expect(page.locator('#tabs')).to_contain_text('已连接')
+            await expect(page.locator('#budget')).to_have_text('不限调用次数')
+            await expect(page.locator('#logs')).to_contain_text('模型配置和调用记录保持不变')
+            await page.locator('#reset-workspace').click()
+            await page.locator('#backup-options summary').click()
+            await expect(page.locator('#backup-select option')).to_have_count(1)
+            await page.locator('#restore-backup').click()
+            await expect(page.locator('#workspace-confirm')).to_have_text('备份并恢复')
+            await page.locator('#workspace-confirm').click()
+            await expect(page.locator('#status')).to_have_text('等待任务',timeout=10000)
+            await expect(page.locator('#run')).to_be_enabled()
         finally:await browser.close()

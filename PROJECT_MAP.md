@@ -64,6 +64,11 @@ Writes are scoped to the selected scenario; cross-system tasks can edit customer
 `business/budget.py` continues the existing ledger; limit=null means explicitly user-authorized unlimited calls, while historical attempts/usage remain and each output stays capped at1024 tokens.
 `tests/verify_business_live.py` independently reopens application records after real-model runs without making model calls or writing business data.
 `BusinessBrowser.prepare_workspace` preloads seven application tabs once per browser context; a stopped browser is automatically restored on the next task. The GuDuu OS controller supports direct execution and an explicit window-open entry. BusinessBrowser.reveal restores minimized headed windows via CDP then activates the selected page. Both web modes use the supplied GuDuu OS PNG and newest-first log display; raw audit/export order is preserved. Stack.brand_assets persists native ERP/wiki logos and wiki title on every start. seed_erp.php applies ERP title/logo constants and replaces only the old product name in existing customer public notes before its seed guard, preserving business edits.
+`/api/workspace/reset` requires explicit confirmation and serializes maintenance against browser/model actions.
+`Stack.reset` freezes the current three volumes as a retained backup, switches to fresh initialized volumes, and atomically saves `.local/business/workspace.json` only after readiness; failed initialization rolls back.
+Backup manifests stay in `.local/business/backups`; restore clones read-only snapshot volumes with a pinned, temporary network-isolated container so snapshots remain immutable. No model config, ledger or audit reset.
+The UI reset dialog also provides backup restore. Maintenance survives page refresh, blocks shutdown, and renews preview expiry on completion.
+Unit/controller tests: `test_workspace_reset.py`; opt-in `WORKSPACE_RESET_INTEGRATION=1 pytest tests/test_workspace_reset_integration.py` runs against a unique disposable Compose project, random loopback ports and finally cleanup, preserving the user's workspace.
 Controller expires60 minutes after readiness when no task runs; finally stops only its owned project, preserving volumes.
 An OS lock prevents simultaneous owners; existing running project is never adopted.
 Tests: `test_business_unit.py`, opt-in `BUSINESS_INTEGRATION=1 pytest tests/test_business_apps.py`.
@@ -85,15 +90,15 @@ Local model config, data, logs and venv are ignored. See README.md and ACCEPTANC
 
 > Do not edit this section by hand. The project-context-map skill preserves all content outside these markers.
 
-- Structural snapshot: `2026-10-21T23:21:28+00:00`
-- Indexed files: `45`
-- Inventory SHA-256: `c6276e262b90ce0f762ed354499a2386da6121a31c56c42b1b2690417f71e0e7`
+- Structural snapshot: `2026-10-22T00:06:33+00:00`
+- Indexed files: `47`
+- Inventory SHA-256: `827a4ac70a1689c14f32ea1c2384e64f91ab1bec81eb34706e4e6d229ead4049`
 - Last reviewed drift: `2 added, 0 removed`
 
 | Scope | Files | Directories |
 | --- | ---: | ---: |
 | `web` | 7 | 1 |
-| `tests` | 14 | 1 |
+| `tests` | 16 | 1 |
 | `server.py` | 1 | 0 |
 | `browser_agent.py` | 1 | 0 |
 | `anthropic_adapter.py` | 1 | 0 |

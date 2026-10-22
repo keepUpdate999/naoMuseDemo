@@ -3,6 +3,7 @@ import asyncio
 import os
 from pathlib import Path
 import sys
+import time
 from types import SimpleNamespace
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -45,6 +46,20 @@ server.config=lambda:{'model':'OFFLINE QA / no provider'}
 server.read_budget=lambda:{'limit':None,'attempts':1000}
 server.build_agent=lambda *a,**k:Agent()
 server.BudgetLLM=lambda inner,log:inner
+
+
+class Workspace:
+    owned=True
+    history=[]
+    def backups(self):return self.history
+    def backup_volumes(self,backup_id):return {}
+    def reset(self,backup_id):
+        time.sleep(1)
+        self.history=[{'id':'20261022T010000Z-abcdef12','created_at':time.time()}]
+        return {'backup_id':self.history[0]['id']}
+
+
+server.workspace=Workspace()
 
 
 async def main():

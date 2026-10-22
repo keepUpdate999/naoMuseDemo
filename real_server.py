@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import secrets
 import time
+from typing import Literal
 
 from fastapi import FastAPI,HTTPException,Request
 from fastapi.responses import HTMLResponse,JSONResponse,Response
@@ -31,6 +32,21 @@ status='idle'
 events=[]
 shutdown_requested=False
 started=time.time()
+workspace=None
+reset_task=None
+workspace_lock=asyncio.Lock()
+
+
+def resetting():
+    return reset_task is not None and not reset_task.done()
+
+
+def available():
+    if resetting() or workspace_lock.locked():raise HTTPException(409,'工作区正在准备或重置，请稍候')
+
+
+async def wait_for_reset():
+    if resetting():await asyncio.shield(reset_task)
 
 
 def config():
@@ -70,6 +86,7 @@ async def stop():
 @asynccontextmanager
 async def lifespan(app):
     yield
+    await wait_for_reset()
     await stop()
 
 
@@ -114,11 +131,12 @@ def get_status(request:Request):
         remaining=None if limit is None else max(0,int(limit)-b['attempts'])
     except (RuntimeError,ValueError):
         remaining=0
-    return {'running':running(),'status':status,'events':events,'remaining':remaining,
+    return {'running':running(),'resetting':resetting(),'status':status,'events':events,'remaining':remaining,
         'unlimited':remaining is None,'calls':b.get('attempts',0),
         'scenarios':SCENARIOS,'browser_open':bool(session and session.page and not session.page.is_closed()),
         'tabs':[p.url for p in session.pages if not p.is_closed()] if session else [],
-        'model':config().get('model',''),'expires_at':started+3600}
+        'model':config().get('model',''),'expires_at':started+3600,
+        'backups':workspace.backups() if workspace else []}
 
 
 async def open_browser():
@@ -151,12 +169,14 @@ def scenario_for(name):
 @app.post('/api/open')
 async def open_route(body:Open,request:Request):
     authorize(request)
+    available()
     if running():raise HTTPException(409,'任务正在运行')
     s=scenario_for(body.scenario)
     try:
-        await open_browser()
-        await focus_scenario(s)
-        await session.reveal()
+        async with workspace_lock:
+            await open_browser()
+            await focus_scenario(s)
+            await session.reveal()
     except Exception as exc:
         log('error',f'打开应用失败：{type(exc).__name__}')
         raise HTTPException(503,'应用打开失败，请检查两套本地应用是否就绪') from None
@@ -215,7 +235,7 @@ async def execute(body):
 @app.post('/api/run')
 async def run(body:Run,request:Request):
     global task,status
-    authorize(request);scenario_for(body.scenario)
+    authorize(request);available();scenario_for(body.scenario)
     if not body.prompt.strip():raise HTTPException(422,'请输入任务')
     if running():raise HTTPException(409,'已有任务运行中')
     budget=read_budget()
@@ -226,14 +246,54 @@ async def run(body:Run,request:Request):
 
 @app.post('/api/stop')
 async def stop_route(request:Request):
-    authorize(request);await stop();return {'stopped':True}
+    authorize(request);available();await stop();return {'stopped':True}
 
 
 @app.post('/api/shutdown')
 async def shutdown(request:Request):
     global shutdown_requested
-    authorize(request);await stop();shutdown_requested=True
+    authorize(request);available();await stop();shutdown_requested=True
     return {'stopped':True}
+
+
+class Reset(BaseModel):
+    confirm:Literal[True]
+    backup_id:str|None=Field(default=None,pattern=r'^\d{8}T\d{6}Z-[a-f0-9]{8}$')
+
+
+async def reset_workspace(body):
+    global status,started
+    async with workspace_lock:
+        try:
+            await stop()
+            status='resetting'
+            log('workspace','正在保留当前工作区备份，并恢复'+('备份数据。' if body.backup_id else '初始素材。'))
+            result=await asyncio.to_thread(workspace.reset,body.backup_id)
+            log('workspace','数据已就绪，正在重新登录并打开业务页面。')
+            await open_browser();await session.reveal()
+            started=time.time();status='idle'
+            log('workspace',f'工作区已恢复，7个业务页面已打开。重置前备份：{result["backup_id"]}。模型配置和调用记录保持不变。')
+        except Exception as exc:
+            status='error'
+            log('error',f'工作区操作失败：{type(exc).__name__}。原数据备份保留；请检查本地服务日志。')
+            # A failed initialization rolls back its data volumes inside Stack.reset.
+            try:await open_browser();await session.reveal()
+            except Exception:pass
+        finally:
+            started=time.time()
+
+
+@app.post('/api/workspace/reset',status_code=202)
+async def reset_route(body:Reset,request:Request):
+    global reset_task,status
+    authorize(request);available()
+    if running():raise HTTPException(409,'请等待当前任务完成，或先停止任务')
+    if not workspace or not workspace.owned:raise HTTPException(503,'工作区服务尚未就绪')
+    if body.backup_id:
+        try:workspace.backup_volumes(body.backup_id)
+        except (OSError,ValueError,KeyError):raise HTTPException(422,'备份不可用') from None
+    status='resetting';reset_task=asyncio.create_task(reset_workspace(body))
+    return {'accepted':True}
 
 
 @app.get('/api/frame')
@@ -247,9 +307,10 @@ app.mount('/assets',StaticFiles(directory=ROOT/'business/web'),name='assets')
 
 
 async def serve():
-    global started
+    global started,workspace
     import uvicorn
     stack=Stack()
+    workspace=stack
     try:
         print('正在启动本地真实应用，请稍候。',flush=True)
         await asyncio.to_thread(stack.start)
@@ -260,7 +321,7 @@ async def serve():
         async def expiry():
             while not shutdown_requested:
                 await asyncio.sleep(1)
-                if time.time()-started>3600 and not running():break
+                if time.time()-started>3600 and not running() and not resetting():break
             server.should_exit=True
         watchdog=asyncio.create_task(expiry())
         try:
@@ -270,6 +331,7 @@ async def serve():
             watchdog.cancel();await asyncio.gather(watchdog,return_exceptions=True)
             await stop()
     finally:
+        await wait_for_reset()
         await stop()
         await asyncio.to_thread(stack.stop)
 
