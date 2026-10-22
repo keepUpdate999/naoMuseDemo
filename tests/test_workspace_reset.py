@@ -155,3 +155,21 @@ def test_reset_api_confirmation_busy_state_and_retained_model_usage(monkeypatch)
             if not state['resetting']:break
             time.sleep(.02)
         assert state['status']=='idle' and state['calls']==400 and state['unlimited']
+
+
+@pytest.mark.asyncio
+async def test_workspace_has_no_age_limit_and_waits_for_explicit_shutdown(monkeypatch):
+    import real_server as server
+    event=asyncio.Event()
+    monkeypatch.setattr(server,'shutdown_event',event)
+    monkeypatch.setattr(server,'started',server.time.time()-86400)
+    uvicorn=SimpleNamespace(should_exit=False)
+    watcher=asyncio.create_task(server.wait_for_shutdown(uvicorn))
+    try:
+        await asyncio.sleep(.02)
+        assert not uvicorn.should_exit and not watcher.done()
+        event.set()
+        await asyncio.wait_for(watcher,timeout=1)
+        assert uvicorn.should_exit
+    finally:
+        watcher.cancel();await asyncio.gather(watcher,return_exceptions=True)

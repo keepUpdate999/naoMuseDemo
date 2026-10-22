@@ -119,7 +119,8 @@ def test_console_no_embed_auth_and_validation(monkeypatch):
         assert 'src="/assets/logo.png"' in html
         assert client.get('/api/status').status_code==403
         headers={'X-Demo-Token':server.token}
-        assert client.get('/api/status',headers=headers).json()['remaining']==14
+        state=client.get('/api/status',headers=headers).json()
+        assert state['remaining']==14 and state['expires_at'] is None
         assert client.post('/api/run',headers=headers,json={'scenario':'customer','prompt':'   '}).status_code==422
         assert client.post('/api/open',headers=headers,json={'scenario':'missing'}).status_code==422
         assert client.post('/api/open',headers={**headers,'origin':'https://evil.invalid'},json={}).status_code==403

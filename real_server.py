@@ -31,6 +31,7 @@ task=None
 status='idle'
 events=[]
 shutdown_requested=False
+shutdown_event=asyncio.Event()
 started=time.time()
 workspace=None
 reset_task=None
@@ -135,7 +136,7 @@ def get_status(request:Request):
         'unlimited':remaining is None,'calls':b.get('attempts',0),
         'scenarios':SCENARIOS,'browser_open':bool(session and session.page and not session.page.is_closed()),
         'tabs':[p.url for p in session.pages if not p.is_closed()] if session else [],
-        'model':config().get('model',''),'expires_at':started+3600,
+        'model':config().get('model',''),'expires_at':None,
         'backups':workspace.backups() if workspace else []}
 
 
@@ -253,6 +254,7 @@ async def stop_route(request:Request):
 async def shutdown(request:Request):
     global shutdown_requested
     authorize(request);available();await stop();shutdown_requested=True
+    shutdown_event.set()
     return {'stopped':True}
 
 
@@ -306,6 +308,11 @@ def frame(request:Request):
 app.mount('/assets',StaticFiles(directory=ROOT/'business/web'),name='assets')
 
 
+async def wait_for_shutdown(server):
+    await shutdown_event.wait()
+    server.should_exit=True
+
+
 async def serve():
     global started,workspace
     import uvicorn
@@ -318,12 +325,7 @@ async def serve():
         await session.reveal()
         started=time.time()
         server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=PORT,log_level='warning'))
-        async def expiry():
-            while not shutdown_requested:
-                await asyncio.sleep(1)
-                if time.time()-started>3600 and not running() and not resetting():break
-            server.should_exit=True
-        watchdog=asyncio.create_task(expiry())
+        watchdog=asyncio.create_task(wait_for_shutdown(server))
         try:
             print(f'READY {BASE}',flush=True)
             await server.serve()

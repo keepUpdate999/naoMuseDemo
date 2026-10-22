@@ -67,9 +67,9 @@ Writes are scoped to the selected scenario; cross-system tasks can edit customer
 `/api/workspace/reset` requires explicit confirmation and serializes maintenance against browser/model actions.
 `Stack.reset` freezes the current three volumes as a retained backup, switches to fresh initialized volumes, and atomically saves `.local/business/workspace.json` only after readiness; failed initialization rolls back.
 Backup manifests stay in `.local/business/backups`; restore clones read-only snapshot volumes with a pinned, temporary network-isolated container so snapshots remain immutable. No model config, ledger or audit reset.
-The UI reset dialog also provides backup restore. Maintenance survives page refresh, blocks shutdown, and renews preview expiry on completion.
+The UI reset dialog also provides backup restore. Maintenance survives page refresh, blocks shutdown, and continues running after completion without an expiry timer.
 Unit/controller tests: `test_workspace_reset.py`; opt-in `WORKSPACE_RESET_INTEGRATION=1 pytest tests/test_workspace_reset_integration.py` runs against a unique disposable Compose project, random loopback ports and finally cleanup, preserving the user's workspace.
-Controller expires60 minutes after readiness when no task runs; finally stops only its owned project, preserving volumes.
+The real-app controller has no automatic expiry; it waits for explicit shutdown. Its finally cleanup stops only its owned project, preserving volumes. /api/status returns expires_at=null. The user explicitly requested this persistent lifecycle.
 An OS lock prevents simultaneous owners; existing running project is never adopted.
 Tests: `test_business_unit.py`, opt-in `BUSINESS_INTEGRATION=1 pytest tests/test_business_apps.py`.
 `test_business_console.py` launches `tests/serve_business_qa.py` on a temporary loopback port to test
@@ -81,7 +81,7 @@ See REAL_APPS_PLAN.md, REAL_APPS_GUIDE.md and REAL_APPS_ACCEPTANCE.md.
 ## Constraints and environment requirements
 
 Parent workspace AGENTS.md applies. Python 3.12, pinned requirements.lock, installed Chromium.
-Startup is start.ps1; stop.ps1 only shuts down the identified demo service. One-hour idle expiry.
+Original18889 mode uses start.ps1/stop.ps1 and keeps its legacy one-hour expiry. Main18892 GuDuu OS runs persistently until explicit exit, as requested by the user.
 For a new Windows checkout, setup.ps1 installs pinned dependencies and configure_model.py prompts for a key, writes DPAPI-encrypted/ACL-restricted local configuration and initializes a ledger only if absent. Reconfiguration never resets usage. Tests: tests/test_configuration.py.
 Local model config, data, logs and venv are ignored. See README.md and ACCEPTANCE.md.
 
