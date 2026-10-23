@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 
 from desktop.connection import Connection
 from desktop.presets import variants
+from desktop.theme import STYLES
+from desktop.log_feed import LogFeed
 
 ROOT = Path(__file__).resolve().parents[1]
 STATUS = {'idle':'等待任务', 'running':'正在执行', 'finished':'本轮已结束，请核对结果',
@@ -28,6 +30,7 @@ class Assistant(QWidget):
     def __init__(self, connection=None, settings=None):
         super().__init__()
         self.setWindowTitle('GuDuu OS · 悬浮任务助手')
+        self.setObjectName('assistant')
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
         self.setMinimumSize(340, 360)
         self.resize(390, 650)
@@ -39,30 +42,34 @@ class Assistant(QWidget):
         self.old_resetting = False; self.last_request_id = None
         self.icon = QIcon(str(ROOT/'business/web/logo.png'))
         self.setWindowIcon(self.icon)
-        layout = QVBoxLayout(self); layout.setSpacing(10); layout.setContentsMargins(16, 14, 16, 14)
+        layout = QVBoxLayout(self); layout.setSpacing(10); layout.setContentsMargins(14, 14, 14, 14)
         header = QHBoxLayout()
         logo = QLabel(); logo.setPixmap(self.icon.pixmap(36, 36)); header.addWidget(logo)
-        title = QLabel('GuDuu OS'); title.setObjectName('brand'); header.addWidget(title)
+        titles=QVBoxLayout();titles.setSpacing(1)
+        title = QLabel('GuDuu OS'); title.setObjectName('brand'); titles.addWidget(title)
+        subtitle=QLabel('AI 工作助手');subtitle.setObjectName('subtitle');titles.addWidget(subtitle);header.addLayout(titles)
         header.addStretch()
         self.fold = QPushButton('收起'); self.fold.clicked.connect(self.toggle_fold); header.addWidget(self.fold)
         layout.addLayout(header)
-        self.status = QLabel('正在连接本地工作区…'); self.status.setWordWrap(True); layout.addWidget(self.status)
+        self.status = QLabel('正在连接本地工作区…'); self.status.setObjectName('status');self.status.setWordWrap(True); layout.addWidget(self.status)
         self.notice = QLabel('选择预置任务即可执行，无需手动输入。'); self.notice.setWordWrap(True); self.notice.setObjectName('notice'); layout.addWidget(self.notice)
         self.status.setTextFormat(Qt.PlainText); self.notice.setTextFormat(Qt.PlainText)
-        self.task_area = QWidget(); area = QVBoxLayout(self.task_area); area.setContentsMargins(0,0,0,0)
-        area.addWidget(QLabel('选择任务'))
+        self.task_area = QWidget(); self.task_area.setObjectName('taskCard'); area = QVBoxLayout(self.task_area); area.setContentsMargins(12,10,12,12);area.setSpacing(8)
+        task_title=QLabel('任务指令');task_title.setObjectName('sectionTitle');area.addWidget(task_title)
         self.scenario = QComboBox(); self.scenario.setObjectName('scenario'); self.scenario.currentIndexChanged.connect(self.choose); area.addWidget(self.scenario)
-        self.prompt = QPlainTextEdit(); self.prompt.setObjectName('prompt'); self.prompt.setMaximumHeight(130); self.prompt.setPlaceholderText('服务就绪后自动填入预置任务'); self.prompt.textChanged.connect(self.controls); area.addWidget(self.prompt)
+        self.prompt = QPlainTextEdit(); self.prompt.setObjectName('prompt'); self.prompt.setMaximumHeight(110);self.prompt.setMinimumHeight(65); self.prompt.setPlaceholderText('服务就绪后自动填入预置任务'); self.prompt.textChanged.connect(self.controls); area.addWidget(self.prompt)
         buttons = QHBoxLayout(); self.swap = QPushButton('换个任务'); self.swap.clicked.connect(self.next_variant); buttons.addWidget(self.swap)
         self.run = QPushButton('智能执行操作'); self.run.setObjectName('primary'); self.run.clicked.connect(self.submit); buttons.addWidget(self.run, 1); area.addLayout(buttons)
         layout.addWidget(self.task_area)
         self.summary = QLabel(); self.summary.setWordWrap(True); self.summary.hide(); layout.addWidget(self.summary)
+        self.summary.setObjectName('summary')
         self.summary.setTextFormat(Qt.PlainText)
-        self.record_area = QWidget(); records = QVBoxLayout(self.record_area); records.setContentsMargins(0,0,0,0)
-        record_header = QHBoxLayout(); record_header.addWidget(QLabel('工作记录 · 最新在上')); record_header.addStretch()
-        self.latest = QPushButton('回到最新'); self.latest.clicked.connect(lambda:self.logs.scrollToTop()); record_header.addWidget(self.latest); records.addLayout(record_header)
+        self.record_area = QWidget();self.record_area.setObjectName('recordCard'); records = QVBoxLayout(self.record_area); records.setContentsMargins(10,10,10,8);records.setSpacing(8)
+        record_header = QHBoxLayout();record_title=QLabel('工作记录');record_title.setObjectName('sectionTitle');record_header.addWidget(record_title)
+        self.log_badge=QLabel('实时同步');self.log_badge.setObjectName('liveBadge');record_header.addWidget(self.log_badge); record_header.addStretch()
+        self.latest = QPushButton('回到最新');self.latest.setObjectName('quiet'); self.latest.clicked.connect(self.return_to_latest); record_header.addWidget(self.latest); records.addLayout(record_header)
         self.history = QComboBox(); self.history.addItem('当前工作区', ''); self.history.currentIndexChanged.connect(self.select_history); records.addWidget(self.history)
-        self.logs = QListWidget(); self.logs.setWordWrap(True); self.logs.setSpacing(5); self.logs.setMinimumHeight(110); self.logs.setVerticalScrollMode(QListWidget.ScrollPerPixel); records.addWidget(self.logs,1)
+        self.logs = LogFeed();self.logs.setMinimumHeight(100); records.addWidget(self.logs,1)
         layout.addWidget(self.record_area, 1)
         footer = QHBoxLayout()
         self.stop = QPushButton('停止任务'); self.stop.clicked.connect(lambda:self.send('stop',{})); footer.addWidget(self.stop)
@@ -70,6 +77,9 @@ class Assistant(QWidget):
         self.more = QPushButton('更多 ⋯'); self.menu = QMenu(self)
         self.menu.addAction('打开完整工作台', self.open_workbench)
         self.menu.addAction('导出当前工作记录', self.export)
+        self.motion_action=self.menu.addAction('减少日志动效');self.motion_action.setCheckable(True)
+        self.motion_action.setChecked(self.settings.value('reduced_motion',False,type=bool))
+        self.logs.reduced_motion=self.motion_action.isChecked();self.motion_action.toggled.connect(self.reduce_motion)
         self.reset_action = self.menu.addAction('备份并重置工作区', self.reset)
         self.restore_menu = self.menu.addMenu('恢复历史备份')
         self.menu.addSeparator(); self.menu.addAction('退出助手（工作区继续运行）', self.quit_assistant)
@@ -80,15 +90,7 @@ class Assistant(QWidget):
         self.tray.setContextMenu(tray_menu); self.tray.setToolTip('GuDuu OS · 悬浮任务助手')
         self.tray.activated.connect(lambda reason:self.reopen() if reason in (QSystemTrayIcon.Trigger,QSystemTrayIcon.DoubleClick) else None)
         if QSystemTrayIcon.isSystemTrayAvailable():self.tray.show()
-        self.setStyleSheet('''QWidget { background:#f6f5ef; color:#203c39; font-family:"Microsoft YaHei UI"; font-size:12px; }
-            QLabel#brand {font-size:20px;font-weight:700;} QLabel#notice {color:#687873;}
-            QPushButton {border:1px solid #d5ddd3; border-radius:7px; padding:8px; background:#fff;}
-            QPushButton:hover {background:#e9eee5;} QPushButton:disabled {color:#9ba7a1;}
-            QPushButton#primary {background:#24634f;color:white;font-weight:700;}
-            QPushButton#primary:disabled {background:#9eafa6;}
-            QPlainTextEdit,QListWidget,QComboBox {background:#fff;border:1px solid #d5ddd3;border-radius:7px;padding:6px;}
-            QListWidget::item {padding:8px;border-bottom:1px solid #e9eee5;}
-            QMenu {background:white;} QMenu::item {padding:8px 18px;} QMenu::item:selected {background:#e9eee5;}''')
+        self.setStyleSheet(STYLES)
         self.restore_position()
         self.connection.state_received.connect(self.update_state)
         self.connection.tasks_received.connect(self.update_tasks)
@@ -170,21 +172,20 @@ class Assistant(QWidget):
             self.restore_menu.addAction(label, lambda checked=False,b=backup:self.reset(b['id']))
         self.controls()
 
-    def render_events(self, events):
+    def return_to_latest(self):
+        self.logs.scrollToTop();self.log_badge.setText('实时同步')
+
+    def reduce_motion(self, checked):
+        self.settings.setValue('reduced_motion',checked);self.logs.reduced_motion=checked
+        if checked:self.logs.animation.stop();self.logs.finish_animation()
+
+    def render_events(self, events, animate=True):
         filtered = [e for e in events if e['kind'] in KINDS]
         signature = [(e.get('id'),e.get('task_id'),e['kind'],e['time'],e['text']) for e in filtered]
         if signature == self.last_events:return
         self.last_events = signature; self.visible_events = filtered
-        scroll = self.logs.verticalScrollBar(); position = scroll.value(); old_max = scroll.maximum()
-        self.logs.clear()
-        for event in reversed(filtered):
-            text = event['text'].replace('nanoMuse','GuDuu OS')
-            item = QListWidgetItem(f"{event['time']} · {KINDS[event['kind']]}\n{text[:360]}" )
-            item.setToolTip(text); self.logs.addItem(item)
-        if not filtered:self.logs.addItem('等待第一条任务。')
-        self.logs.doItemsLayout()
-        if position == 0:self.logs.scrollToTop()
-        else:scroll.setValue(position+max(0,scroll.maximum()-old_max))
+        self.logs.set_events(filtered,animate=animate)
+        if self.logs.new_count:self.log_badge.setText(f'+{self.logs.new_count} 条更新')
 
     def update_tasks(self, tasks):
         selected = self.history.currentData(); self.history.blockSignals(True); self.history.clear(); self.history.addItem('当前工作区', '')
@@ -197,10 +198,10 @@ class Assistant(QWidget):
     def select_history(self):
         selected = self.history.currentData()
         if selected:self.connection.command('history',selected)
-        else:self.render_events(self.state.get('events',[]))
+        else:self.render_events(self.state.get('events',[]),animate=False)
 
     def show_history(self, task_id, events):
-        if self.history.currentData()==task_id:self.render_events(events)
+        if self.history.currentData()==task_id:self.render_events(events,animate=False)
 
     def send(self, name, body):
         if self.pending or not self.connected:return

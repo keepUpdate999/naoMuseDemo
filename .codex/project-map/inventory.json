@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "generated_at": "2026-10-23T07:23:31+00:00",
-  "path_digest": "f91b156d38d08dfa082d23399924e1f4df61457c0ea7d4223d30593935b6fcb5",
+  "generated_at": "2026-10-23T07:59:18+00:00",
+  "path_digest": "6593f6fcae5d960d6577bdc80b2d2d6a8b078b67c066ca4104fd3da64746367f",
   "last_change": {
-    "added": 14,
+    "added": 7,
     "removed": 0
   },
   "files": [
@@ -15,6 +15,9 @@
     },
     {
       "path": "build-floating.ps1"
+    },
+    {
+      "path": "business/action_overlay.js"
     },
     {
       "path": "business/browser.py"
@@ -33,6 +36,9 @@
     },
     {
       "path": "business/materials.py"
+    },
+    {
+      "path": "business/presentation.py"
     },
     {
       "path": "business/seed_erp.php"
@@ -65,16 +71,25 @@
       "path": "desktop/build_portable.py"
     },
     {
+      "path": "desktop/chevron.svg"
+    },
+    {
       "path": "desktop/connection.py"
     },
     {
       "path": "desktop/launch_portable.py"
     },
     {
+      "path": "desktop/log_feed.py"
+    },
+    {
       "path": "desktop/main.py"
     },
     {
       "path": "desktop/presets.py"
+    },
+    {
+      "path": "desktop/theme.py"
     },
     {
       "path": "real_server.py"
@@ -149,6 +164,9 @@
       "path": "tests/test_openai_gateway.py"
     },
     {
+      "path": "tests/test_presentation.py"
+    },
+    {
       "path": "tests/test_provider_failure.py"
     },
     {
@@ -159,6 +177,9 @@
     },
     {
       "path": "tests/test_workspace_reset_integration.py"
+    },
+    {
+      "path": "tests/verify_browser_cues.py"
     },
     {
       "path": "tests/verify_business_live.py"

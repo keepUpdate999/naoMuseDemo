@@ -6,6 +6,7 @@ from browser_agent import BrowserSession,DemoBrowser
 from nanomuse.tools.base import CallAssessment
 from nanomuse.schema import RiskLevel
 from business.catalog import ERP,WIKI
+from business.presentation import ActionPresenter
 
 
 class BusinessBrowserTool(DemoBrowser):
@@ -24,6 +25,7 @@ class BusinessBrowser(BrowserSession):
         self.scenario=None
         self.workspace_context=None
         self.control_labels={}
+        self.presenter=ActionPresenter(enabled=False)
 
     async def prepare_workspace(self):
         await self.start()
@@ -36,6 +38,7 @@ class BusinessBrowser(BrowserSession):
                 await self.act('new_tab',url=url)
         self.workspace_context=self.context
         await self.act('switch_tab',tab=0)
+        self.presenter.enabled=not self.headless
 
     async def track_popup(self,page):
         if len(self.pages)>=self.MAX_TABS:
@@ -89,6 +92,7 @@ class BusinessBrowser(BrowserSession):
         if self.pw:
             await self.close()
         from playwright.async_api import async_playwright
+        self.presenter.enabled=False
         self.pw=await async_playwright().start()
         self.browser=await self.pw.chromium.launch(headless=self.headless,args=['--window-size=1440,1000'])
         self.context=await self.browser.new_context(viewport={'width':1360,'height':900},locale='zh-CN',service_workers='block')
@@ -138,16 +142,21 @@ class BusinessBrowser(BrowserSession):
               label:e.getAttribute('aria-label')||e.labels?.[0]?.innerText||e.innerText?.trim().slice(0,160)||e.placeholder||(['submit','button'].includes(e.type)?e.value:'')||e.getAttribute('title')||e.name,
               name:e.name,value:typeof e.value==='string'?e.value.slice(0,6000):e.value,href:e.href||e.closest('a')?.href,options:e.tagName==='SELECT'?[...e.options].map(o=>o.text):undefined}))};
         }''')
-        self.control_labels={e['id']:str(e.get('label') or '')[:60] for e in observation['elements']}
+        names={'button_search_x':'查询','button_removefilter_x':'清除筛选','search_company':'客户名称',
+               'search_ref':'订单号','q':'搜索关键词','note_public':'公开备注','wikitext':'知识库正文',
+               'do[save]':'保存','modify':'保存修改'}
+        self.control_labels={e['id']:' '.join(str(names.get(e.get('name')) or e.get('label') or '').split())[:60]
+                             for e in observation['elements']}
         return observation
 
     async def act(self,action,target=0,text='',url='',tab=0):
         await self.start()
+        focused=False
         labels={'open':'打开页面','new_tab':'打开新标签页','switch_tab':'切换业务标签页',
                 'click':'点击页面控件','fill':'填写页面字段','select':'选择下拉选项','scroll':'滚动页面'}
         label=labels.get(action)
         if action in ('click','fill','select') and self.control_labels.get(target):
-            label+='「'+self.control_labels[target]+'」'
+            label={'click':'点击','fill':'填写','select':'选择'}[action]+'「'+self.control_labels[target]+'」'
         emit=getattr(self,'event_log',None)
         if emit and label:emit('action','正在'+label)
         if action in ('open','new_tab'):
@@ -158,30 +167,42 @@ class BusinessBrowser(BrowserSession):
                     raise ValueError(f'最多{self.MAX_TABS}个标签页')
                 self.page=await self.context.new_page();self.pages.append(self.page)
                 self.page.on('popup',self.track_popup)
+            await self.presenter.transition(self.page,'正在打开业务页面')
             await self.page.goto(url)
+            await self.presenter.after(self.page,'打开业务页面')
         elif action=='tabs':
             return [{'tab':i,'url':p.url} for i,p in enumerate(self.pages) if not p.is_closed()]
         elif action=='switch_tab':
             if not 0<=tab<len(self.pages) or self.pages[tab].is_closed():
                 raise ValueError('标签页不存在')
-            self.page=self.pages[tab]
+            if self.page is not self.pages[tab]:
+                await self.presenter.transition(self.page,'正在切换业务标签页')
+                self.page=self.pages[tab]
+                await self.page.bring_to_front()
+                focused=True
+                title=(await self.page.title())[:40]
+                await self.presenter.transition(self.page,'已切换到：'+title)
         elif action in ('click','fill','select'):
             el=self.page.locator(f'[data-agent-id="{int(target)}"]')
             if action in ('fill','select') and not self.can_write(self.page.url):
                 query_form=await el.evaluate("e=>e.form?.method.toLowerCase()==='get'")
                 if not query_form:
                     raise ValueError('当前场景在此页面仅可查阅。跨系统任务只修改客户卡片公开备注和知识库；订单保持只读。')
+            before_url=self.page.url
+            cue_box=await self.presenter.before(self.page,el,label)
             if action=='click':
                 await el.click(timeout=5000)
             elif action=='select':
                 await el.select_option(label=text,timeout=5000)
             else:
                 await el.fill(text,timeout=5000)
+            await self.presenter.after(self.page,label,cue_box if self.page.url==before_url else None)
         elif action=='scroll':
+            await self.presenter.transition(self.page,'正在向上查看页面' if text=='up' else '正在向下查看页面')
             await self.page.mouse.wheel(0,-650 if text=='up' else 650)
         elif action!='read':
             raise ValueError('不支持的操作')
-        if action in ('switch_tab','new_tab','open'):
+        if action in ('switch_tab','new_tab','open') and not focused:
             await self.page.bring_to_front()
         self.action=f'{action} · {urlsplit(self.page.url).netloc}'
         await self.page.wait_for_timeout(250)

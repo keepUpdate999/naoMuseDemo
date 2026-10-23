@@ -161,6 +161,28 @@ def test_qt_reset_confirmation_fold_and_no_focus_on_updates(window,qt_app,monkey
     window.update_state(state());assert window.prompt.toPlainText()==variants(SCENARIOS[0])[0]
 
 
+def test_live_log_animation_preserves_reading_and_reduced_motion(window,qt_app):
+    from PySide6.QtCore import QAbstractAnimation
+    from PySide6.QtTest import QTest
+    def event(i):return {'id':i,'task_id':'motion-test','time':'12:00:00','kind':'action','text':f'OFFLINE QA 浏览器动作 {i}'}
+    window.update_state(state(events=[event(1)]));qt_app.processEvents()
+    assert window.logs.animation.state()==QAbstractAnimation.Stopped
+    window.update_state(state(events=[event(1),event(2)]));qt_app.processEvents()
+    assert window.logs.animation.state()==QAbstractAnimation.Running
+    assert window.log_badge.text()=='+1 条更新'
+    QTest.qWait(550);qt_app.processEvents()
+    assert window.logs.animation.state()==QAbstractAnimation.Stopped and not window.logs.progress
+    window.update_state(state(events=[event(i) for i in range(1,22)]));QTest.qWait(550)
+    bar=window.logs.verticalScrollBar();bar.setValue(bar.maximum());before=window.logs.itemAt(12,12).text()
+    window.update_state(state(events=[event(i) for i in range(1,23)]));qt_app.processEvents()
+    assert window.logs.animation.state()==QAbstractAnimation.Stopped and bar.value()>0
+    assert window.logs.itemAt(12,12).text()==before
+    window.return_to_latest();window.motion_action.setChecked(True)
+    window.update_state(state(events=[event(i) for i in range(1,24)]));qt_app.processEvents()
+    assert window.logs.animation.state()==QAbstractAnimation.Stopped
+    assert window.settings.value('reduced_motion',False,type=bool)
+
+
 def test_connection_real_http_and_qt_run_stop_reconnect(qt_app,console_qa):
     from desktop.connection import Connection
     connection=Connection(int(console_qa.rsplit(':',1)[1]));states=[];completed=[];errors=[];links=[]

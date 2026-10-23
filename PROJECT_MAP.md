@@ -85,6 +85,10 @@ See REAL_APPS_PLAN.md, REAL_APPS_GUIDE.md and REAL_APPS_ACCEPTANCE.md.
 
 `business/history.py` persists request IDs, task status and sequenced events in ignored `.local/business/history.sqlite3`; interrupted tasks are marked on startup. `/api/tasks` and per-task events require the same controller token. `Run.request_id` deduplicates requests before any extra model call. Stop cancels the agent and preserves browser pages; shutdown/reset still own browser cleanup. Browser action events describe actual completed UI actions and do not equate clicking Save with verified persistence. Reads no longer activate the browser; explicit reveal restores only minimized windows without resizing normal/maximized windows.
 
+`desktop/theme.py` uses sRGB equivalents of the GuDuu OS platform's CosMac 2A cold-gray/navy tokens; `desktop/log_feed.py` paints timeline cards with bounded fade/height reveal for new live entries, stable reading anchors and a persistent reduce-motion option. Initial history loads do not animate and background changes never activate the window.
+
+`business/presentation.py` / `business/action_overlay.js` provide visible target outlines, moving action pointers, trusted-click ripples and tab/navigation notices around real browser actions. The pointer-transparent shadow overlay makes no requests, writes no business fields and stays outside agent observations. Visual failures do not retry business actions; cancellation during preview prevents the later click. Login/preloading and headless integrations skip visual pacing. `tests/test_presentation.py` uses isolated Chromium fixture pages (including strict CSP) for click/fill/select/navigation, write boundaries, cancellation and visual-failure fallback. `tests/verify_browser_cues.py` is an explicit read-only actual-app smoke with its own finally-closed headed browser and screenshots; no model calls.
+
 Desktop dependencies are separate, pinned in `requirements-desktop.lock`; `setup-desktop.ps1` installs them after core setup. `build-floating.ps1` builds an allowlisted ZIP with hash-checked CPython 3.12.10, exact dependencies and upstream licenses/source. New machines still require Docker Desktop, Chromium/images and private local model configuration. No production connection or cloud pairing changes. See `FLOATING_ASSISTANT.md`; `tests/test_floating.py` covers Qt interactions, real offline HTTP, durable history and duplicate/cancel behavior. `tests/verify_floating_desktop.py` is an opt-in read-only actual-service smoke, with no model calls or data reset.
 
 Parent workspace AGENTS.md applies. Python 3.12, pinned requirements.lock, installed Chromium.
@@ -97,15 +101,15 @@ Local model config, data, logs and venv are ignored. See README.md and ACCEPTANC
 
 > Do not edit this section by hand. The project-context-map skill preserves all content outside these markers.
 
-- Structural snapshot: `2026-10-23T07:23:31+00:00`
-- Indexed files: `61`
-- Inventory SHA-256: `f91b156d38d08dfa082d23399924e1f4df61457c0ea7d4223d30593935b6fcb5`
-- Last reviewed drift: `14 added, 0 removed`
+- Structural snapshot: `2026-10-23T07:59:18+00:00`
+- Indexed files: `68`
+- Inventory SHA-256: `6593f6fcae5d960d6577bdc80b2d2d6a8b078b67c066ca4104fd3da64746367f`
+- Last reviewed drift: `7 added, 0 removed`
 
 | Scope | Files | Directories |
 | --- | ---: | ---: |
 | `web` | 7 | 1 |
-| `tests` | 18 | 1 |
+| `tests` | 20 | 1 |
 | `server.py` | 1 | 0 |
 | `browser_agent.py` | 1 | 0 |
 | `anthropic_adapter.py` | 1 | 0 |
@@ -115,12 +119,12 @@ Local model config, data, logs and venv are ignored. See README.md and ACCEPTANC
 | `start.ps1` | 1 | 0 |
 | `stop.ps1` | 1 | 0 |
 | `setup.ps1` | 1 | 0 |
-| `business` | 12 | 2 |
+| `business` | 14 | 2 |
 | `real_server.py` | 1 | 0 |
 | `start-real.ps1` | 1 | 0 |
 | `stop-real.ps1` | 1 | 0 |
 | `configure_model.py` | 1 | 0 |
-| `desktop` | 6 | 1 |
+| `desktop` | 9 | 1 |
 | `requirements-desktop.lock` | 1 | 0 |
 | `setup-desktop.ps1` | 1 | 0 |
 | `start-floating.ps1` | 1 | 0 |
