@@ -110,7 +110,7 @@ async def test_run_refresh_stop_reopen_and_failure_recovery(console_qa):
             assert r.status==409
             await page.locator('#stop').click()
             await expect(page.locator('#status')).to_have_text('已停止')
-            await expect(page.locator('#tabs')).to_have_text('执行时自动连接应用')
+            await expect(page.locator('#tabs')).to_contain_text('已连接')
             await page.locator('#open').click()
             await expect(page.locator('#tabs')).to_contain_text('已连接')
             await page.locator('#prompt').fill('simulate-failure')

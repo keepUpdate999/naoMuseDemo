@@ -1,6 +1,7 @@
 """Separate real application presentation controller; no embedded business pages."""
 import asyncio
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ from business.browser import BusinessBrowser,BusinessBrowserTool
 from business.budget import BudgetLLM,read_budget
 from business.catalog import SCENARIOS,ERP,WIKI
 from business.stack import Stack,credentials
+from business.history import History
 from secret_store import unprotect
 
 ROOT=Path(__file__).parent
@@ -36,6 +38,11 @@ started=time.time()
 workspace=None
 reset_task=None
 workspace_lock=asyncio.Lock()
+history=None
+active_task_id=None
+event_sequence=0
+accepted_requests={}
+task_context=ContextVar('business_task_id',default=None)
 
 
 def resetting():
@@ -57,7 +64,11 @@ def config():
 
 
 def log(kind,text):
-    events.append({'time':time.strftime('%H:%M:%S'),'kind':kind,'text':str(text)[:2400]})
+    global event_sequence
+    event_sequence+=1
+    event={'id':event_sequence,'task_id':task_context.get(),'time':time.strftime('%H:%M:%S'),'kind':kind,'text':str(text)[:2400]}
+    if history:history.append(event)
+    events.append(event)
     del events[:-200]
 
 
@@ -74,11 +85,11 @@ async def close_agent():
         agent=None
 
 
-async def stop():
+async def stop(preserve_browser=False):
     global status
     if running():
         task.cancel();await asyncio.gather(task,return_exceptions=True)
-    if session:
+    if session and not preserve_browser:
         await session.close()
     await close_agent()
     status='stopped'
@@ -133,6 +144,7 @@ def get_status(request:Request):
     except (RuntimeError,ValueError):
         remaining=0
     return {'running':running(),'resetting':resetting(),'status':status,'events':events,'remaining':remaining,
+        'task_id':active_task_id,'desktop_protocol':1,
         'unlimited':remaining is None,'calls':b.get('attempts',0),
         'scenarios':SCENARIOS,'browser_open':bool(session and session.page and not session.page.is_closed()),
         'tabs':[p.url for p in session.pages if not p.is_closed()] if session else [],
@@ -144,6 +156,7 @@ async def open_browser():
     global session
     if session is None:
         session=BusinessBrowser(credentials()['BUSINESS_APP_PASSWORD'])
+    session.event_log=log
     await session.start()
     await session.prepare_workspace()
 
@@ -188,6 +201,7 @@ async def open_route(body:Open,request:Request):
 class Run(BaseModel):
     scenario:str
     prompt:str=Field(min_length=1,max_length=6000)
+    request_id:str|None=Field(default=None,pattern=r'^[a-zA-Z0-9_-]{8,80}$')
 
 
 def task_addendum(prompt):
@@ -206,12 +220,13 @@ Dolibarr客户订单联系人系统：{ERP}，DokuWiki知识库：{WIKI}。已�
 
 async def execute(body):
     global agent,status
-    status='running';log('user',body.prompt)
+    context_token=task_context.set(active_task_id)
+    status='running'
     try:
+        log('user',body.prompt)
         await open_browser()
         s=scenario_for(body.scenario)
         await focus_scenario(s)
-        await session.reveal()
         session.scenario=body.scenario
         if agent is None:
             agent=build_agent(config(),session,log,data_dir=ROOT/'.local/business/runtime',tool_override=BusinessBrowserTool())
@@ -222,32 +237,54 @@ async def execute(body):
         result=await asyncio.wait_for(agent.run(body.prompt),timeout=300)
         status='finished';log('result',result or '本轮结束，请在应用中核对结果。')
     except asyncio.CancelledError:
-        log('stopped','任务已取消，已保存记录保留。');raise
+        status='stopped';log('stopped','任务已取消，已保存记录保留。');raise
     except Exception as exc:
         code=getattr(exc,'status_code',None)
         status='error'
         log('error',f'执行失败：HTTP {code}' if code else f'执行失败：{type(exc).__name__}。请检查页面和剩余额度。')
         await close_agent()
     finally:
-        if session:
-            session.scenario=None
+        try:
+            if history and active_task_id:history.finish(active_task_id,status)
+            if session:session.scenario=None
+        finally:task_context.reset(context_token)
 
 
 @app.post('/api/run')
 async def run(body:Run,request:Request):
-    global task,status
+    global task,status,active_task_id
     authorize(request);available();scenario_for(body.scenario)
     if not body.prompt.strip():raise HTTPException(422,'请输入任务')
+    if body.request_id:
+        previous=history.by_request(body.request_id) if history else accepted_requests.get(body.request_id)
+        if previous:return {'accepted':True,'task_id':previous,'duplicate':True}
     if running():raise HTTPException(409,'已有任务运行中')
     budget=read_budget()
     if budget.get('limit',60) is not None and budget['attempts']>=int(budget.get('limit',60)):raise HTTPException(409,'授权请求额度已用完')
+    active_task_id=secrets.token_hex(16)
+    if history:history.create_task(active_task_id,body.request_id or active_task_id,body.scenario,body.prompt)
+    if body.request_id:
+        accepted_requests[body.request_id]=active_task_id
+        if len(accepted_requests)>1000:accepted_requests.pop(next(iter(accepted_requests)))
     status='running';task=asyncio.create_task(execute(body))
-    return {'accepted':True}
+    return {'accepted':True,'task_id':active_task_id}
+
+
+@app.get('/api/tasks')
+def task_history(request:Request):
+    authorize(request)
+    return {'tasks':history.tasks() if history else []}
+
+
+@app.get('/api/tasks/{task_id}/events')
+def task_events(task_id:str,request:Request):
+    authorize(request)
+    return {'events':history.events(task_id) if history else [e for e in events if e.get('task_id')==task_id]}
 
 
 @app.post('/api/stop')
 async def stop_route(request:Request):
-    authorize(request);available();await stop();return {'stopped':True}
+    authorize(request);available();await stop(preserve_browser=True);return {'stopped':True}
 
 
 @app.post('/api/shutdown')
@@ -314,11 +351,13 @@ async def wait_for_shutdown(server):
 
 
 async def serve():
-    global started,workspace
+    global started,workspace,history,events
     import uvicorn
     stack=Stack()
     workspace=stack
     try:
+        history=History(ROOT/'.local/business/history.sqlite3')
+        events=history.events()
         print('正在启动本地真实应用，请稍候。',flush=True)
         await asyncio.to_thread(stack.start)
         await open_browser()

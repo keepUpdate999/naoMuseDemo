@@ -17,6 +17,7 @@ Separate from nanoMuse-showcase's phone simulator.
 | Path | Responsibility | Main entry points |
 | --- | --- | --- |
 | `business` / `real_server.py` | Independent real-application controller, headed browser, encrypted app credentials, materials, shared model ledger, owned Compose lifecycle. | `business/stack.py`, `business/browser.py`, `business/catalog.py`, `business/web` |
+| `desktop` | Native PySide6 floating task assistant, preset follow-ups, local-only network worker and pinned portable packaging. | `desktop/main.py`, `desktop/connection.py`, `desktop/presets.py`, `desktop/build_portable.py` |
 | `web` | Workbench and six local pages. | `index.html`, `scene.js`, `catalog.js` |
 | `server.py` | Loopback HTTP API, task lifecycle, control authentication, preview expiry. | `serve`, `execute`, `stop` |
 | `browser_agent.py` | Real browser sessions, tab switching, screenshots, native MuseAgent adapter. | `BrowserSession`, `DemoBrowser`, `build_agent` |
@@ -80,6 +81,12 @@ See REAL_APPS_PLAN.md, REAL_APPS_GUIDE.md and REAL_APPS_ACCEPTANCE.md.
 
 ## Constraints and environment requirements
 
+`start-floating.ps1` (or `启动GuDuu悬浮助手.cmd`) opens a native always-on-top task assistant and starts/reuses the local service without launching another workbench. Its Qt UI uses a background network worker, rejects redirects/proxies and connects only to loopback; provider credentials remain in the service. Six scenes have two ready task variants; contact tasks search before creating. Execution hides the editor but keeps newest-first action/result records visible; manual folding, tray restore, screen-bound geometry and explicit workspace exit are supported. Background updates never raise the window.
+
+`business/history.py` persists request IDs, task status and sequenced events in ignored `.local/business/history.sqlite3`; interrupted tasks are marked on startup. `/api/tasks` and per-task events require the same controller token. `Run.request_id` deduplicates requests before any extra model call. Stop cancels the agent and preserves browser pages; shutdown/reset still own browser cleanup. Browser action events describe actual completed UI actions and do not equate clicking Save with verified persistence. Reads no longer activate the browser; explicit reveal restores only minimized windows without resizing normal/maximized windows.
+
+Desktop dependencies are separate, pinned in `requirements-desktop.lock`; `setup-desktop.ps1` installs them after core setup. `build-floating.ps1` builds an allowlisted ZIP with hash-checked CPython 3.12.10, exact dependencies and upstream licenses/source. New machines still require Docker Desktop, Chromium/images and private local model configuration. No production connection or cloud pairing changes. See `FLOATING_ASSISTANT.md`; `tests/test_floating.py` covers Qt interactions, real offline HTTP, durable history and duplicate/cancel behavior. `tests/verify_floating_desktop.py` is an opt-in read-only actual-service smoke, with no model calls or data reset.
+
 Parent workspace AGENTS.md applies. Python 3.12, pinned requirements.lock, installed Chromium.
 Original18889 mode uses start.ps1/stop.ps1 and keeps its legacy one-hour expiry. Main18892 GuDuu OS runs persistently until explicit exit, as requested by the user.
 For a new Windows checkout, setup.ps1 installs pinned dependencies and configure_model.py prompts for a key, writes DPAPI-encrypted/ACL-restricted local configuration and initializes a ledger only if absent. Reconfiguration never resets usage. Tests: tests/test_configuration.py.
@@ -90,15 +97,15 @@ Local model config, data, logs and venv are ignored. See README.md and ACCEPTANC
 
 > Do not edit this section by hand. The project-context-map skill preserves all content outside these markers.
 
-- Structural snapshot: `2026-10-22T00:06:33+00:00`
-- Indexed files: `47`
-- Inventory SHA-256: `827a4ac70a1689c14f32ea1c2384e64f91ab1bec81eb34706e4e6d229ead4049`
-- Last reviewed drift: `2 added, 0 removed`
+- Structural snapshot: `2026-10-23T07:23:31+00:00`
+- Indexed files: `61`
+- Inventory SHA-256: `f91b156d38d08dfa082d23399924e1f4df61457c0ea7d4223d30593935b6fcb5`
+- Last reviewed drift: `14 added, 0 removed`
 
 | Scope | Files | Directories |
 | --- | ---: | ---: |
 | `web` | 7 | 1 |
-| `tests` | 16 | 1 |
+| `tests` | 18 | 1 |
 | `server.py` | 1 | 0 |
 | `browser_agent.py` | 1 | 0 |
 | `anthropic_adapter.py` | 1 | 0 |
@@ -108,10 +115,16 @@ Local model config, data, logs and venv are ignored. See README.md and ACCEPTANC
 | `start.ps1` | 1 | 0 |
 | `stop.ps1` | 1 | 0 |
 | `setup.ps1` | 1 | 0 |
-| `business` | 11 | 2 |
+| `business` | 12 | 2 |
 | `real_server.py` | 1 | 0 |
 | `start-real.ps1` | 1 | 0 |
 | `stop-real.ps1` | 1 | 0 |
 | `configure_model.py` | 1 | 0 |
+| `desktop` | 6 | 1 |
+| `requirements-desktop.lock` | 1 | 0 |
+| `setup-desktop.ps1` | 1 | 0 |
+| `start-floating.ps1` | 1 | 0 |
+| `build-floating.ps1` | 1 | 0 |
+| `启动GuDuu悬浮助手.cmd` | 1 | 0 |
 
 <!-- project-context-map:generated:end -->

@@ -13,6 +13,34 @@ pytestmark=pytest.mark.skipif(os.environ.get('BUSINESS_INTEGRATION')!='1',reason
 EVIDENCE=Path(__file__).resolve().parents[1]/'.local/business/evidence'
 
 
+@pytest.mark.asyncio
+async def test_visible_browser_reveal_keeps_geometry_and_logs_real_actions(monkeypatch):
+    session=BusinessBrowser(credentials()['BUSINESS_APP_PASSWORD'],headless=False)
+    events=[];session.event_log=lambda kind,text:events.append((kind,text))
+    try:
+        await session.prepare_workspace()
+        cdp=await session.context.new_cdp_session(session.page)
+        window=await cdp.send('Browser.getWindowForTarget')
+        await cdp.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'windowState':'normal'}})
+        await cdp.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'left':100,'top':90,'width':1100,'height':760}})
+        before=(await cdp.send('Browser.getWindowForTarget'))['bounds']
+        await session.reveal()
+        assert (await cdp.send('Browser.getWindowForTarget'))['bounds']==before
+        await cdp.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'windowState':'maximized'}})
+        await session.reveal()
+        assert (await cdp.send('Browser.getWindowForTarget'))['bounds']['windowState']=='maximized'
+        await cdp.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'windowState':'minimized'}})
+        await session.reveal()
+        assert (await cdp.send('Browser.getWindowForTarget'))['bounds']['windowState'] in ('normal','maximized')
+        async def forbidden_focus():raise AssertionError('Reading must not reactivate browser')
+        monkeypatch.setattr(session.page,'bring_to_front',forbidden_focus)
+        observation=await session.act('read')
+        assert observation['elements'] and 'societe' in observation['url']
+        assert any(kind=='action' and text.startswith('已完成') for kind,text in events)
+        await cdp.detach()
+    finally:await session.close()
+
+
 async def element(session,**attrs):
     d=await session.observe()
     return next(e for e in d['elements'] if all(e.get(k)==v for k,v in attrs.items()))

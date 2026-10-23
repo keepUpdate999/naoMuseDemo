@@ -17,7 +17,13 @@
     "real_server.py",
     "start-real.ps1",
     "stop-real.ps1",
-    "configure_model.py"
+    "configure_model.py",
+    "desktop",
+    "requirements-desktop.lock",
+    "setup-desktop.ps1",
+    "start-floating.ps1",
+    "build-floating.ps1",
+    "启动GuDuu悬浮助手.cmd"
   ],
   "exclude_names": [
     ".git",

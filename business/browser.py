@@ -23,6 +23,7 @@ class BusinessBrowser(BrowserSession):
         self.headless=headless
         self.scenario=None
         self.workspace_context=None
+        self.control_labels={}
 
     async def prepare_workspace(self):
         await self.start()
@@ -50,8 +51,8 @@ class BusinessBrowser(BrowserSession):
             cdp=await self.context.new_cdp_session(self.page)
             try:
                 window=await cdp.send('Browser.getWindowForTarget')
-                await cdp.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'windowState':'normal'}})
-                await cdp.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'left':40,'top':40,'width':1440,'height':1000}})
+                if window.get('bounds',{}).get('windowState')=='minimized':
+                    await cdp.send('Browser.setWindowBounds',{'windowId':window['windowId'],'bounds':{'windowState':'normal'}})
             finally:
                 await cdp.detach()
         await self.page.bring_to_front()
@@ -128,7 +129,7 @@ class BusinessBrowser(BrowserSession):
     async def observe(self):
         await self.page.wait_for_load_state('domcontentloaded')
         await self.page.locator('body').wait_for(state='attached',timeout=10000)
-        return await self.page.evaluate('''() => {
+        observation=await self.page.evaluate('''() => {
           const elements=[...document.querySelectorAll('a,button,input,textarea,select,[contenteditable="true"],[role="button"],span[title],i[title]')]
             .filter(e=>e.checkVisibility({checkVisibilityCSS:true,checkOpacity:true}) && e.getBoundingClientRect().width && e.getBoundingClientRect().height && !e.disabled && e.type!=='password' && e.type!=='hidden');
           elements.forEach((e,i)=>e.setAttribute('data-agent-id',i));
@@ -137,9 +138,18 @@ class BusinessBrowser(BrowserSession):
               label:e.getAttribute('aria-label')||e.labels?.[0]?.innerText||e.innerText?.trim().slice(0,160)||e.placeholder||(['submit','button'].includes(e.type)?e.value:'')||e.getAttribute('title')||e.name,
               name:e.name,value:typeof e.value==='string'?e.value.slice(0,6000):e.value,href:e.href||e.closest('a')?.href,options:e.tagName==='SELECT'?[...e.options].map(o=>o.text):undefined}))};
         }''')
+        self.control_labels={e['id']:str(e.get('label') or '')[:60] for e in observation['elements']}
+        return observation
 
     async def act(self,action,target=0,text='',url='',tab=0):
         await self.start()
+        labels={'open':'打开页面','new_tab':'打开新标签页','switch_tab':'切换业务标签页',
+                'click':'点击页面控件','fill':'填写页面字段','select':'选择下拉选项','scroll':'滚动页面'}
+        label=labels.get(action)
+        if action in ('click','fill','select') and self.control_labels.get(target):
+            label+='「'+self.control_labels[target]+'」'
+        emit=getattr(self,'event_log',None)
+        if emit and label:emit('action','正在'+label)
         if action in ('open','new_tab'):
             if not self.allowed(url):
                 raise ValueError('只能打开本次客户系统和知识库')
@@ -171,7 +181,10 @@ class BusinessBrowser(BrowserSession):
             await self.page.mouse.wheel(0,-650 if text=='up' else 650)
         elif action!='read':
             raise ValueError('不支持的操作')
-        await self.page.bring_to_front()
+        if action in ('switch_tab','new_tab','open'):
+            await self.page.bring_to_front()
         self.action=f'{action} · {urlsplit(self.page.url).netloc}'
         await self.page.wait_for_timeout(250)
-        return await self.observe()
+        observation=await self.observe()
+        if emit and label:emit('action','已完成'+label+'；保存结果以重新读取核验为准。' if action=='click' else '已完成'+label)
+        return observation
