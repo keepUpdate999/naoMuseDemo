@@ -95,7 +95,11 @@ class BusinessBrowser(BrowserSession):
         self.presenter.enabled=False
         self.pw=await async_playwright().start()
         self.browser=await self.pw.chromium.launch(headless=self.headless,args=['--window-size=1440,1000'])
-        self.context=await self.browser.new_context(viewport={'width':1360,'height':900},locale='zh-CN',service_workers='block')
+        # A headed browser must follow its native client area when resized/maximized.
+        self.context=await self.browser.new_context(
+            no_viewport=not self.headless,
+            viewport={'width':1360,'height':900} if self.headless else None,
+            locale='zh-CN',service_workers='block')
         async def guard(route):
             if self.allowed(route.request.url) and (route.request.method in ('GET','HEAD','OPTIONS') or self.can_write(route.request.url)):
                 await route.continue_()

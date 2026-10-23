@@ -14,6 +14,43 @@ EVIDENCE=Path(__file__).resolve().parents[1]/'.local/business/evidence'
 
 
 @pytest.mark.asyncio
+async def test_headed_viewport_follows_native_window_on_all_seven_tabs():
+    session=BusinessBrowser(credentials()['BUSINESS_APP_PASSWORD'],headless=False)
+    evidence=EVIDENCE/'responsive';evidence.mkdir(parents=True,exist_ok=True)
+    try:
+        await session.prepare_workspace();session.presenter.enabled=False
+        assert len(session.pages)==7 and all(p.viewport_size is None for p in session.pages)
+        cdp=await session.context.new_cdp_session(session.page)
+        window=(await cdp.send('Browser.getWindowForTarget'))['windowId']
+        await cdp.send('Browser.setWindowBounds',{'windowId':window,'bounds':{'windowState':'normal'}})
+        await cdp.send('Browser.setWindowBounds',{'windowId':window,'bounds':{'left':10,'top':10,'width':1100,'height':760}})
+        await session.page.wait_for_function('innerWidth < 1200')
+        small=await session.page.evaluate('innerWidth')
+        await cdp.send('Browser.setWindowBounds',{'windowId':window,'bounds':{'width':1900,'height':1050}})
+        await session.page.wait_for_function('innerWidth > 1700')
+        large=await session.page.evaluate('innerWidth');assert large>small+600
+        for page in session.pages:
+            await page.bring_to_front()
+            await page.wait_for_function('innerWidth > 1700')
+            metrics=await page.evaluate('({inner:innerWidth,outer:outerWidth,height:innerHeight,outerHeight})')
+            assert 0<=metrics['outer']-metrics['inner']<=40,metrics
+            assert 0<metrics['outerHeight']-metrics['height']<180,metrics
+        await cdp.send('Browser.setWindowBounds',{'windowId':window,'bounds':{'windowState':'maximized'}})
+        contacts=session.pages[3];await contacts.bring_to_front()
+        await contacts.wait_for_function('innerWidth >= outerWidth - 40')
+        await contacts.screenshot(path=str(evidence/'contacts-maximized.png'))
+        wiki=session.pages[1];await wiki.bring_to_front()
+        await wiki.wait_for_function('innerWidth >= outerWidth - 40')
+        await wiki.screenshot(path=str(evidence/'wiki-maximized.png'))
+        await cdp.send('Browser.setWindowBounds',{'windowId':window,'bounds':{'windowState':'normal'}})
+        await cdp.send('Browser.setWindowBounds',{'windowId':window,'bounds':{'width':1100,'height':760}})
+        await wiki.wait_for_function('innerWidth < 1200')
+        assert await wiki.evaluate('innerWidth')<large
+        await cdp.detach()
+    finally:await session.close()
+
+
+@pytest.mark.asyncio
 async def test_visible_browser_reveal_keeps_geometry_and_logs_real_actions(monkeypatch):
     session=BusinessBrowser(credentials()['BUSINESS_APP_PASSWORD'],headless=False)
     events=[];session.event_log=lambda kind,text:events.append((kind,text))
